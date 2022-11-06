@@ -29,20 +29,19 @@ def extract_borders(args):
     # ids for slice and projection for shifts testing
     idproj = int((data_shape[0]-1)*args.nprojection)
     # idproj = np.arange(0,2000,100)
-    for jtile in range(grid.shape[1]):              
-        with h5py.File(grid[0,::-step][jtile],'r') as fid:
-            data = fid['/exchange/data'][idproj,:,:data_shape[2]-x_shift]
-            dark = fid['/exchange/data_dark'][:,:,:data_shape[2]-x_shift]
-            flat = fid['/exchange/data_white'][:,:,:data_shape[2]-x_shift]
-            data = (data-np.mean(dark,axis=0))/np.maximum(1e-3,(np.mean(flat,axis=0)-np.mean(dark,axis=0)))
-            dxchange.write_tiff(data.astype('float32'),f'{args.folder_name}/tile_rec/tile_proj/p{jtile}0',overwrite=True)       
-            data = fid['/exchange/data'][idproj,:,-(data_shape[2]-x_shift):]
-            dark = fid['/exchange/data_dark'][:,:,-(data_shape[2]-x_shift):]
-            flat = fid['/exchange/data_white'][:,:,-(data_shape[2]-x_shift):]
-            data = (data-np.mean(dark,axis=0))/np.maximum(1e-3,(np.mean(flat,axis=0)-np.mean(dark,axis=0)))
-            dxchange.write_tiff(data.astype('float32'),f'{args.folder_name}/tile_rec/tile_proj/p{jtile}1',overwrite=True)       
+    for itile in range(grid.shape[0]):                          
+        for jtile in range(grid.shape[1]):              
+            with h5py.File(grid[itile,::-step][jtile],'r') as fid:
+                data = fid['/exchange/data'][idproj,:,:data_shape[2]-x_shift]
+                dark = fid['/exchange/data_dark'][:,:,:data_shape[2]-x_shift]
+                flat = fid['/exchange/data_white'][:,:,:data_shape[2]-x_shift]
+                data = (data-np.mean(dark,axis=0))/np.maximum(1e-3,(np.mean(flat,axis=0)-np.mean(dark,axis=0)))
+                dxchange.write_tiff(data.astype('float32'),f'{args.folder_name}/tile_rec/tile_proj/p{itile}_{jtile}0',overwrite=True)       
+                data = fid['/exchange/data'][idproj,:,-(data_shape[2]-x_shift):]
+                dark = fid['/exchange/data_dark'][:,:,-(data_shape[2]-x_shift):]
+                flat = fid['/exchange/data_white'][:,:,-(data_shape[2]-x_shift):]
+                data = (data-np.mean(dark,axis=0))/np.maximum(1e-3,(np.mean(flat,axis=0)-np.mean(dark,axis=0)))
+                dxchange.write_tiff(data.astype('float32'),f'{args.folder_name}/tile_rec/tile_proj/p{itile}_{jtile}1',overwrite=True)       
+    
             
-            
-        
-        
-            
+                

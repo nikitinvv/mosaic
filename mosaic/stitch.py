@@ -2,7 +2,6 @@ import numpy as np
 from mosaic import log
 from mosaic import fileio
 import dxchange
-import tomopy
 import os
 import h5py
 __all__ = ['stitching']
@@ -54,7 +53,9 @@ def stitching(args):
         theta = fid.create_dataset('/exchange/theta', data = theta0/np.pi*180)
         
         # stitch projections by chunks
+        print(nproj_to_stitch)
         for ichunk in range(int(np.ceil(nproj_to_stitch/args.chunk_size))):
+            print(ichunk)
             st_chunk = ichunk*args.chunk_size
             end_chunk = min((ichunk+1)*args.chunk_size,nproj_to_stitch)
             if(args.test==True):
@@ -66,7 +67,7 @@ def stitching(args):
                 for ix in range(ntiles_h):
                     print(cshifts_h[iy,ix])
                     # VN: no need to read flat and dark fields for each chunk, should we use h5py[].. instead?
-                    proj0, flat0, dark0, _ = dxchange.read_aps_tomoscan_hdf5(grid[iy,ix], proj=(st_chunk,end_chunk))
+                    proj0, flat0, dark0, _ = dxchange.read_aps_tomoscan_hdf5(grid[iy,::-1][ix], proj=(st_chunk,end_chunk))
                     proj0 = (np.float32(proj0)).astype(proj0.dtype)
 
                     # define index in x for proj (filling from the left side)
@@ -93,26 +94,25 @@ def stitching(args):
                     
                     # fill array part
                     tmp = proj0[:,st_y0:end_y0,st_x0:end_x0]
-                    
-                    
-                    ##################FIX FOR MISSING ANGLES
-                    print(tmp.shape[0],end_chunk-st_chunk)
-                    if tmp.shape[0]<end_chunk-st_chunk:
-                        tmp=np.pad(tmp,((0,end_chunk-st_chunk-tmp.shape[0]),(0,0),(0,0)),mode='edge')
-                    
-                    proj[st_chunk:end_chunk,st_y:end_y,st_x:end_x] = tmp[:,:,::-1]#proj0[:,st_y0:end_y0,st_x0:end_x0]
-                    log.info('grid[iy,ix] = %s, ix=%d, iy=%d dark0.shape[%d, %d, %d]' % (grid[iy,ix], ix, iy, dark0.shape[0], dark0.shape[1], dark0.shape[2]))
+                    print(f"{st_x=},{st_x0=},{end_x=},{end_x0=}")                                        
+                    proj[st_chunk:end_chunk,st_y:end_y,st_x:end_x] = tmp#proj0[:,st_y0:end_y0,st_x0:end_x0]
+                    log.info('grid[iy,ix] = %s, ix=%d, iy=%d dark0.shape[%d, %d, %d]' % (grid[iy,::-1][ix], ix, iy, dark0.shape[0], dark0.shape[1], dark0.shape[2]))
                     if(ichunk==0): # flat and dark field can be filled once (VN: maybe we can move this code out of the loop)
                         tmp = flat0[:,st_y0:end_y0,st_x0:end_x0]
-                        flat[:,st_y:end_y,st_x:end_x] = np.mean(tmp[:,:,::-1],axis=0)
+                        flat[:,st_y:end_y,st_x:end_x] = np.mean(tmp,axis=0)
                         tmp = dark0[:,st_y0:end_y0,st_x0:end_x0]
-                        dark[:,st_y:end_y,st_x:end_x] = np.mean(tmp[:,:,::-1],axis=0)
+                        dark[:,st_y:end_y,st_x:end_x] = np.mean(tmp,axis=0)
                     
                     if(args.test==True):                
                         # fill the normalized array part
-                        tmp = tomopy.normalize(proj0[0,st_y0:end_y0,st_x0:end_x0], 
-                            flat0[:,st_y0:end_y0,st_x0:end_x0], dark0[:,st_y0:end_y0,st_x0:end_x0])                
-                        norm[0,st_y:end_y,st_x:end_x] = tmp[:,::-1]
+                        # tmp = tomopy.normalize(proj0[0,st_y0:end_y0,st_x0:end_x0], 
+                            # flat0[:,st_y0:end_y0,st_x0:end_x0], dark0[:,st_y0:end_y0,st_x0:end_x0])                
+                        flat00=flat0[:,st_y0:end_y0,st_x0:end_x0]
+                        dark00=dark0[:,st_y0:end_y0,st_x0:end_x0]
+                        proj00=proj0[0,st_y0:end_y0,st_x0:end_x0]
+                        tmp = (proj00-np.mean(dark00,axis=0))/(np.mean(flat00,axis=0)-np.mean(dark00,axis=0))
+                        
+                        norm[0,st_y:end_y,st_x:end_x] = tmp#[:,::-1]
                         # plot lines arround borders (not necessary in future)
                         norm[0,min(max(st_y-16,0),proj.shape[1]-1)-2:min(max(st_y-16,0),proj.shape[1]-1)+2,st_x:end_x]=0
                         norm[0,min(max(st_y+16,0),proj.shape[1]-1)-2:min(max(st_y+16,0),proj.shape[1]-1)+2,st_x:end_x]=0
@@ -123,6 +123,7 @@ def stitching(args):
                         norm[0,st_y:end_y,min(max(st_x+16,0),proj.shape[2]-1)-2:min(max(st_x+16,0),proj.shape[2]-1)+2]=0
                         norm[0,st_y:end_y,min(max(end_x-16,0),proj.shape[2]-1)-2:min(max(end_x-16,0),proj.shape[2]-1)+2]=0
                         norm[0,st_y:end_y,min(max(end_x+16,0),proj.shape[2]-1)-2:min(max(end_x+16,0),proj.shape[2]-1)+2]=0
+                        
                         
     log.info('Stitched h5 file is saved as %s' % args.mosaic_fname)
     if(args.test==True): 
