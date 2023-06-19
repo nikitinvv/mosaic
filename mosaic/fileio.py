@@ -65,8 +65,10 @@ def extract_meta(fname):
 
 def extract_dict(fname):
 
-    tree, meta_data = meta.read_hdf(fname)
-    sub_dict = {fname : meta_data}
+    mp = meta.read_meta.Hdf5MetadataReader(fname)
+    meta_dict = mp.readMetadata()
+    mp.close()
+    sub_dict = {fname : meta_dict}
 
     return sub_dict
 

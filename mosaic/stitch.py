@@ -15,7 +15,7 @@ def stitching(args):
     shifts_v    = fileio.read_array(shifts_v_fname)
     
     #FDC: here we need to handle the case of h/v scan only (no tiles)
-    # compute cumulative shifts
+    # compute cumulative shifts    
     cshifts_h = shifts_h[:,:,1]
     cshifts_v = shifts_v[:,:,0]
     cshifts_h[:,0] = np.cumsum(shifts_h[:,0,1]+shifts_v[:,0,1])
@@ -23,6 +23,8 @@ def stitching(args):
     cshifts_h = np.cumsum(cshifts_h,axis=1)
     cshifts_v = np.cumsum(cshifts_v,axis=0)
     
+    ox = shifts_h[:,:,1]+shifts_v[:,:,1]
+    oy = shifts_h[:,:,0]+shifts_v[:,:,0]
     # retrieve sizes (could be optimized)
     _, grid, data_shape, _, _, _ = fileio.tile(args)
     
@@ -92,10 +94,35 @@ def stitching(args):
                     st_y0 = st_y-st_y0                    
                     end_y0 = proj0.shape[1]+end_y-end_y0
                     
+                    vy = np.ones([end_y0-st_y0],dtype='float32')
+                    vx = np.ones([end_x0-st_x0],dtype='float32')
+                    
+                    
+                    v = np.linspace(0, 1, int(ox[iy,ix]), endpoint=False)
+                    
+                    # if ix>0:
+                    vxleft = v**5*(126-420*v+540*v**2-315*v**3+70*v**4)
+                    vx[:len(vxleft)] = vxleft
+                    # print(vx)
+                    if ix+1<ntiles_h:
+                        v = np.linspace(1, 0, int(ox[iy,ix+1]), endpoint=False)
+                        vxright = v**5*(126-420*v+540*v**2-315*v**3+70*v**4)                    
+                        vx[-len(vxright):] = vxright                                        
+                    # print(vx)
+                    v = np.linspace(0, 1, int(oy[iy,ix]), endpoint=False)                    
+                    vyleft = v**5*(126-420*v+540*v**2-315*v**3+70*v**4)
+                    vy[:len(vyleft)] = vyleft                    
+                    if iy+1<ntiles_v:
+                        v = np.linspace(1, 0, int(oy[iy+1,ix]), endpoint=False)
+                        vyright = v**5*(126-420*v+540*v**2-315*v**3+70*v**4)                    
+                        vy[-len(vyright):] = vyright     
+                    v = np.outer(vy,vx)
+                    
                     # fill array part
-                    tmp = proj0[:,st_y0:end_y0,st_x0:end_x0]
+                    tmp = proj0[:,st_y0:end_y0,st_x0:end_x0]*v
                     print(f"{st_x=},{st_x0=},{end_x=},{end_x0=}")                                        
-                    proj[st_chunk:end_chunk,st_y:end_y,st_x:end_x] = tmp#proj0[:,st_y0:end_y0,st_x0:end_x0]
+                    proj[st_chunk:end_chunk,st_y:end_y,st_x:end_x] += tmp#proj0[:,st_y0:end_y0,st_x0:end_x0]
+                    
                     log.info('grid[iy,ix] = %s, ix=%d, iy=%d dark0.shape[%d, %d, %d]' % (grid[iy,::-1][ix], ix, iy, dark0.shape[0], dark0.shape[1], dark0.shape[2]))
                     if(ichunk==0): # flat and dark field can be filled once (VN: maybe we can move this code out of the loop)
                         tmp = flat0[:,st_y0:end_y0,st_x0:end_x0]
@@ -112,17 +139,17 @@ def stitching(args):
                         proj00=proj0[0,st_y0:end_y0,st_x0:end_x0]
                         tmp = (proj00-np.mean(dark00,axis=0))/(np.mean(flat00,axis=0)-np.mean(dark00,axis=0))
                         
-                        norm[0,st_y:end_y,st_x:end_x] = tmp#[:,::-1]
+                        norm[0,st_y:end_y,st_x:end_x] += tmp*v#[:,::-1]
                         # plot lines arround borders (not necessary in future)
-                        norm[0,min(max(st_y-16,0),proj.shape[1]-1)-2:min(max(st_y-16,0),proj.shape[1]-1)+2,st_x:end_x]=0
-                        norm[0,min(max(st_y+16,0),proj.shape[1]-1)-2:min(max(st_y+16,0),proj.shape[1]-1)+2,st_x:end_x]=0
-                        norm[0,min(max(end_y-16,0),proj.shape[1]-1)-2:min(max(end_y-16,0),proj.shape[1]-1)+2,st_x:end_x]=0
-                        norm[0,min(max(end_y+16,0),proj.shape[1]-1)-2:min(max(end_y+16,0),proj.shape[1]-1)+2,st_x:end_x]=0
+                        norm[0,min(max(st_y-16,0),proj.shape[1]-1)-2:min(max(st_y-16,0),proj.shape[1]-1)+2,st_x:end_x]=np.nan
+                        norm[0,min(max(st_y+16,0),proj.shape[1]-1)-2:min(max(st_y+16,0),proj.shape[1]-1)+2,st_x:end_x]=np.nan
+                        norm[0,min(max(end_y-16,0),proj.shape[1]-1)-2:min(max(end_y-16,0),proj.shape[1]-1)+2,st_x:end_x]=np.nan
+                        norm[0,min(max(end_y+16,0),proj.shape[1]-1)-2:min(max(end_y+16,0),proj.shape[1]-1)+2,st_x:end_x]=np.nan
                         
-                        norm[0,st_y:end_y,min(max(st_x-16,0),proj.shape[2]-1)-2:min(max(st_x-16,0),proj.shape[2]-1)+2]=0
-                        norm[0,st_y:end_y,min(max(st_x+16,0),proj.shape[2]-1)-2:min(max(st_x+16,0),proj.shape[2]-1)+2]=0
-                        norm[0,st_y:end_y,min(max(end_x-16,0),proj.shape[2]-1)-2:min(max(end_x-16,0),proj.shape[2]-1)+2]=0
-                        norm[0,st_y:end_y,min(max(end_x+16,0),proj.shape[2]-1)-2:min(max(end_x+16,0),proj.shape[2]-1)+2]=0
+                        norm[0,st_y:end_y,min(max(st_x-16,0),proj.shape[2]-1)-2:min(max(st_x-16,0),proj.shape[2]-1)+2]=np.nan
+                        norm[0,st_y:end_y,min(max(st_x+16,0),proj.shape[2]-1)-2:min(max(st_x+16,0),proj.shape[2]-1)+2]=np.nan
+                        norm[0,st_y:end_y,min(max(end_x-16,0),proj.shape[2]-1)-2:min(max(end_x-16,0),proj.shape[2]-1)+2]=np.nan
+                        norm[0,st_y:end_y,min(max(end_x+16,0),proj.shape[2]-1)-2:min(max(end_x+16,0),proj.shape[2]-1)+2]=np.nan
                         
                         
     log.info('Stitched h5 file is saved as %s' % args.mosaic_fname)

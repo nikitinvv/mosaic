@@ -5,6 +5,7 @@ from mosaic import util
 from mosaic import fileio
 import dxchange
 import cupy as cp
+import cupyx.scipy.ndimage as ndimage
 __all__ = ['shift_manual']
 
 def _upsampled_dft(data, ups,
@@ -25,6 +26,8 @@ def _upsampled_dft(data, ups,
 
 def registration_shift(src_image, target_image, upsample_factor=1, space="real"):
 
+    src_image = ndimage.median_filter(src_image,7)
+    target_image = ndimage.median_filter(target_image,7)
     # assume complex data is already in Fourier space
     if space.lower() == 'fourier':
         src_freq = src_image
@@ -88,7 +91,7 @@ def register_shift_sift(datap1, datap2, threshold):
     #print('min *************', mmin)
     #print('max *************', mmax)
     # sift = cv2.xfeatures2d.SIFT_create()
-    sift = cv2.SIFT_create()
+    sift = cv2.SIFT_create(sigma=1,nOctaveLayers=9,contrastThreshold=0.02,edgeThreshold=18)
     shifts = np.zeros([datap1.shape[0],2],dtype='float32')
     for id in range(datap1.shape[0]):       
         tmp1 = ((datap1[id]-mmin1[id]) / (mmax1[id]-mmin1[id])*255.)
@@ -103,12 +106,17 @@ def register_shift_sift(datap1, datap2, threshold):
         tmp2 = tmp2.astype('uint8')
         kp1, des1 = sift.detectAndCompute(tmp1,None)
         kp2, des2 = sift.detectAndCompute(tmp2,None)
+        cv2.imwrite('img1.png',tmp1)
+        cv2.imwrite('img2.png',tmp2)
+        exit()
+        print(len(kp1))
+        cv2.imwrite('original_image_right_keypoints.png',cv2.drawKeypoints(tmp1,kp1,None))
+        cv2.imwrite('original_image_left_keypoints.png',cv2.drawKeypoints(tmp2,kp2,None))
+        # exit()
         if(len(kp1)==0 or len(kp2)==0):
             shifts[id] = np.nan  
-            continue
+            continue        
         
-        # cv2.imwrite('original_image_right_keypoints.png',cv2.drawKeypoints(tmp1,kp1,None))
-        # cv2.imwrite('original_image_left_keypoints.png',cv2.drawKeypoints(tmp2,kp2,None))
         match = cv2.BFMatcher()
         matches = match.knnMatch(des1,des2,k=2)
         good = []
@@ -172,8 +180,8 @@ def shift_manual(args):
             wx = int((norm0.shape[2] - x_shift)*1)
             shift = register_shift_sift(norm1[:,:,-wx:], norm0[:,:,:wx],args.threshold)
             # print(shift)
-            # shift = -registration_shift(cp.array(norm1[:,:,-wx:]), cp.array(norm0[:,:,:wx])).get()
-            print(shift)
+            # shift = registration_shift(cp.array(norm1[:,:,-wx:]), cp.array(norm0[:,:,:wx])).get()
+            # print(shift)
             shift = shift[~np.isnan(shift[:,0])]
             if (len(shift)==0):
                 shift = np.array([[0,0]])
@@ -187,12 +195,14 @@ def shift_manual(args):
             proj1, flat1, dark1, _ = dxchange.read_aps_tomoscan_hdf5(grid[iy+1,ix], proj=(idproj,idproj+1))
             norm0 = (proj0-np.mean(dark0,axis=0))/(np.mean(flat0,axis=0)-np.mean(dark0,axis=0))
             norm1 = (proj1-np.mean(dark1,axis=0))/(np.mean(flat1,axis=0)-np.mean(dark1,axis=0))
-            wy = int((norm0.shape[1] - y_shift)*1)
-            shift = register_shift_sift(norm0[:,-wy:,:], norm1[:,:wy,:],args.threshold)
+            wy = int((norm0.shape[1] - y_shift)*1)            
+            # shift = register_shift_sift(norm0[:,-wy:,:], norm1[:,:wy,:],args.threshold)
+            shift = registration_shift(cp.array(norm0[:,-wy:,:]), cp.array(norm1[:,:wy,:])).get()
             shift = shift[~np.isnan(shift[:,0])]
             if (len(shift)==0):
                 shift = np.array([[0,0]])
-            # shift = -registration_shift(cp.array(norm0[:,-wy:,:]), cp.array(norm1[:,:wy,:])).get()
+            # dxchange.write_tiff(norm0[:,-wy:,:],'t0.tiff',overwrite=True)
+            # dxchange.write_tiff(norm1[:,:wy,:],'t1.tiff',overwrite=True)                        
             # print(shift)
             shifts_v[iy+1,ix] = [np.median(wy-shift[:,0]),np.median(shift[:,1])]            
     log.info('Horizontal shifts')
