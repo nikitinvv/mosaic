@@ -46,14 +46,14 @@ def stitching(args):
 
     idproj = int((data_shape[0]-1)*args.nprojection)
     # mosaic_fname = os.path.join(args.folder_name, 'tmp', 'mosaic.h5')
-    with h5py.File(args.mosaic_fname,'a') as fid:
+    with h5py.File(args.mosaic_fname,'w') as fid:
         # init output arrays
         #VN: add metadata with dxwriter
-        proj = fid.create_dataset('/exchange/data', (nproj_to_stitch,*proj_size),dtype='float32', chunks = (1,*proj_size))
-        flat = fid.create_dataset('/exchange/data_white', (1,*proj_size),dtype='float32', chunks = (1,*proj_size))
-        dark = fid.create_dataset('/exchange/data_dark', (1,*proj_size),dtype='float32', chunks = (1,*proj_size))
+        proj = fid.create_dataset('/exchange/data', (nproj_to_stitch,*proj_size),dtype=proj0.dtype, chunks = (1,*proj_size))
+        flat = fid.create_dataset('/exchange/data_white', (1,*proj_size),dtype=flat0.dtype, chunks = (1,*proj_size))
+        dark = fid.create_dataset('/exchange/data_dark', (1,*proj_size),dtype=dark0.dtype, chunks = (1,*proj_size))
         theta = fid.create_dataset('/exchange/theta', data = theta0/np.pi*180)
-        proj = fid['/exchange/data']
+        
         # stitch projections by chunks
         print(nproj_to_stitch)
         for ichunk in range(int(np.ceil(nproj_to_stitch/args.chunk_size))):
@@ -70,10 +70,8 @@ def stitching(args):
                     print(cshifts_h[iy,ix])
                     # VN: no need to read flat and dark fields for each chunk, should we use h5py[].. instead?
                     proj0, flat0, dark0, _ = dxchange.read_aps_tomoscan_hdf5(grid[iy,::-1][ix], proj=(st_chunk,end_chunk))
-                    proj0 = (np.float32(proj0)-np.mean(dark0,axis=0))/(np.mean(flat0,axis=0)-np.mean(dark0,axis=0))#.astype(proj0.dtype)
-                    flat0[:]=1
-                    dark0[:]=0
-                    
+                    proj0 = (np.float32(proj0)).astype(proj0.dtype)
+
                     # define index in x for proj (filling from the left side)
                     st_x0 = int(np.round((ix)*data_shape[2]-cshifts_h[iy,ix]))
                     end_x0 = st_x0+data_shape[2]            
@@ -128,9 +126,9 @@ def stitching(args):
                     log.info('grid[iy,ix] = %s, ix=%d, iy=%d dark0.shape[%d, %d, %d]' % (grid[iy,::-1][ix], ix, iy, dark0.shape[0], dark0.shape[1], dark0.shape[2]))
                     if(ichunk==0): # flat and dark field can be filled once (VN: maybe we can move this code out of the loop)
                         tmp = flat0[:,st_y0:end_y0,st_x0:end_x0]
-                        flat[:,st_y:end_y,st_x:end_x] = 1#np.mean(tmp,axis=0)
+                        flat[:,st_y:end_y,st_x:end_x] = np.mean(tmp,axis=0)
                         tmp = dark0[:,st_y0:end_y0,st_x0:end_x0]
-                        dark[:,st_y:end_y,st_x:end_x] = 0#np.mean(tmp,axis=0)
+                        dark[:,st_y:end_y,st_x:end_x] = np.mean(tmp,axis=0)
                     
                     if(args.test==True):                
                         # fill the normalized array part

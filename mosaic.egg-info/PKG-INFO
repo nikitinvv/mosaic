@@ -1,0 +1,7 @@
+Metadata-Version: 2.1
+Name: mosaic
+Version: 0.1
+Summary: cli to process mosaic tomography data
+Home-page: https://github.com/decarlof/mosaic
+Author: Francesco De Carlo
+Author-email: decarlof@gmail.com

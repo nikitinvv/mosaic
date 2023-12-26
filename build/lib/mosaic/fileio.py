@@ -7,7 +7,7 @@ import os
 from collections import deque
 from pathlib import Path
 
-from mosaic import log
+from tile import log
 
 KNOWN_FORMATS = ['dx', 'aps2bm', 'aps7bm', 'aps32id']
 SHIFTS_FILE_HEADER = '# Array shape: '
@@ -113,7 +113,6 @@ def tile(args):
     # print(meta_dict,sample_x,sample_y)
     x_sorted = {k: v for k, v in sorted(meta_dict.items(), key=lambda item: item[1][sample_x])}
     y_sorted = {k: v for k, v in sorted(x_sorted.items(), key=lambda item: item[1][sample_y])}
-    #print(y_sorted)
     
     first_key = list(y_sorted.keys())[0]
     second_key = list(y_sorted.keys())[1]
@@ -121,10 +120,8 @@ def tile(args):
     tile_index_y = 0
     x_start = y_sorted[first_key][sample_x][0] - 1
     y_start = y_sorted[first_key][sample_y][0] - 1 
-    
-    
-    # exit()
-    # y_sorted[first_key][resolution] = [0.69, 'um']
+
+    #y_sorted[first_key][resolution] = [0.69, 'um']
     x_shift = int((1000*(x_sorted[second_key][sample_x][0]- x_sorted[first_key][sample_x][0]))/y_sorted[first_key][resolution][0])
     y_shift = 0
     

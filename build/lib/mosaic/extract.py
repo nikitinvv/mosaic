@@ -1,8 +1,8 @@
 import dxchange
 import numpy as np
 
-from mosaic import log
-from mosaic import fileio
+from tile import log
+from tile import fileio
 import h5py
 
 __all__ = ['extract_borders']
